@@ -1,0 +1,49 @@
+[project]
+name = "turtle"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "discord.py[voice] @ git+https://github.com/Rapptz/discord.py.git@a00510988a204517f4777f1231407de3db726ae5", # CHANGE ME WHEN NEW VERSION IS RELEASED
+    "discord-pretty-help>=2.0.7",
+    "asyncio>=3.4.3",
+    "asyncpg>=0.30.0",
+    "discord-ext-menus",
+    "numpy>=2.2.1",
+    "aiohttp>=3.11.11",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.4",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+discord-ext-menus = { git = "https://github.com/Rapptz/discord-ext-menus" }
+
+[tool.ruff]
+exclude = [
+    "0"
+]
+
+[tool.ruff.lint]
+select = [
+    "A004", # Check for import shadowing builtin functions: https://docs.astral.sh/ruff/rules/builtin-import-shadowing/
+    "RUF",
+    "UP",
+    "I",
+    "ASYNC",
+    "F"
+]
+extend-ignore = [
+    "ASYNC110", # I don't care
+    "ASYNC221"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

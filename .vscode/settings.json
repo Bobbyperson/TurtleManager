@@ -1,0 +1,18 @@
+{
+    "Lua.diagnostics.globals": [
+        "shell",
+        "http",
+        "gps",
+        "turtle",
+        "computer",
+        "sleep",
+        "term",
+        "read",
+        "parallel"
+    ],
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "files.insertFinalNewline": true,
+        "editor.formatOnSave": true
+    }
+}
