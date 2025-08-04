@@ -118,8 +118,26 @@ function RunInstructions()
             MoveUp()
         elseif instruction == "movedown" then
             MoveDown()
-        elseif instruction == "moveforward" then
+        elseif instruction == "north" then
+            Face(0)
             MoveForward()
+        elseif instruction == "east" then
+            Face(1)
+            MoveForward()
+        elseif instruction == "south" then
+            Face(2)
+            MoveForward()
+        elseif instruction == "west" then
+            Face(3)
+            MoveForward()
+        elseif instruction == "facenorth" then
+            Face(0)
+        elseif instruction == "faceeast" then
+            Face(1)
+        elseif instruction == "facesouth" then
+            Face(2)
+        elseif instruction == "facewest" then
+            Face(3)
         elseif instruction == "moveback" then
             MoveBack()
         elseif instruction == "turnleft" then
@@ -293,6 +311,21 @@ function MoveDown() -- moves bot down 1 block and updates position
     end
     Pos["y"] = Pos["y"] - 1
 end
+
+function Face(direction) -- turns bot to face a specific direction (0 = N, 1 = E, 2 = S, 3 = W)
+    if direction < 0 or direction > 3 then
+        print("Invalid direction: " .. direction)
+        return
+    end
+
+    while Rotation ~= direction do
+        if (Rotation + 1) % 4 == direction then
+            Turn(1) -- turn right
+        else
+            Turn(-1) -- turn left
+        end
+    end
+end 
 
 function Turn(num) -- turns bot either left (-1) or right (+1) depending on input and updates Rotation value
     if num == 1 then 

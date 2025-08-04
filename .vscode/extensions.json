@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "charliermarsh.ruff"
+        "rust-lang.rust-analyzer",
+        "dustypomerleau.rust-syntax"
     ]
 }
