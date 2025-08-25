@@ -4,3 +4,4 @@ config.toml
 
 /target
 data/*.json
+JSON.lua
