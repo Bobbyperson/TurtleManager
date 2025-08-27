@@ -1,0 +1,2 @@
+secret_key = "CHANGE_ME_TO_SOMETHING_SECRET"
+port = "3001"

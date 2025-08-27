@@ -9,5 +9,9 @@
         "term",
         "read",
         "parallel"
-    ]
+    ],
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "editor.formatOnSave": true
+    }
 }

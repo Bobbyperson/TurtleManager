@@ -1,9 +1,12 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+use bincode::{Decode, Encode};
+use serde::{Deserialize, Serialize};
+
 // Core types
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
 pub struct Point3D {
     pub x: i32,
     pub y: i32,

@@ -1,6 +1,13 @@
-use crate::pathfinder::{Grid, Point3D, astar_find_path};
+use std::{fs::File, io::BufReader};
 
-struct Block {
+use crate::pathfinder::{Grid, Point3D, astar_find_path};
+use bincode::{Decode, Encode, config};
+
+use std::io::ErrorKind;
+use std::path::Path;
+
+#[derive(Encode, Decode, PartialEq, Debug)]
+pub struct Block {
     position: Point3D,
     block_type: String,
 }
@@ -17,7 +24,8 @@ impl Block {
     }
 }
 
-struct World {
+#[derive(Encode, Decode, PartialEq, Debug)]
+pub struct World {
     blocks: Vec<Block>,
 }
 impl World {
@@ -68,6 +76,31 @@ impl World {
             }
         }
         astar_find_path(&grid, start, end)
+    }
+    pub fn load_world<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match File::open(&path) {
+            Ok(file) => {
+                let mut reader = BufReader::new(file);
+                let cfg = config::standard();
+                let loaded: World = bincode::decode_from_std_read(&mut reader, cfg)?;
+                *self = loaded;
+                Ok(())
+            }
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                *self = World::new();
+                Ok(())
+            }
+            Err(e) => Err(Box::new(e)),
+        }
+    }
+    pub fn save_world(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = File::create(path)?;
+        let cfg = config::standard();
+        bincode::encode_into_std_write(self, &mut file, cfg)?;
+        Ok(())
     }
 }
 
