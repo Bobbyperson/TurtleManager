@@ -38,33 +38,43 @@ impl World {
     pub fn get_block(&self, position: Point3D) -> Option<&Block> {
         self.blocks.iter().find(|b| b.position == position)
     }
-    fn apply_padding(&self, value: i32, padding: u32) -> i32 {
-        if value > 0 {
-            value + padding as i32
+    pub fn get_block_mut(&mut self, position: Point3D) -> Option<&mut Block> {
+        self.blocks.iter_mut().find(|b| b.position == position)
+    }
+    pub fn set_block(&mut self, block: Block) {
+        if let Some(existing) = self.get_block_mut(block.position) {
+            *existing = block;
         } else {
-            value - padding as i32
+            self.add_block(block);
         }
     }
     pub fn get_path(
         &self,
-        mut start: Point3D,
+        start: Point3D,
         mut end: Point3D,
         padding: u32,
         can_dig: bool,
     ) -> Option<Vec<Point3D>> {
-        start.x = self.apply_padding(start.x, padding);
-        start.y = self.apply_padding(start.y, padding);
-        start.z = self.apply_padding(start.z, padding);
-        end.x = self.apply_padding(end.x, padding);
-        end.y = self.apply_padding(end.y, padding);
-        end.z = self.apply_padding(end.z, padding);
         if end.y < -60 {
             end.y = -60;
         } else if end.y > 318 {
             end.y = 318;
         }
+        println!("Finding path from {:?} to {:?}", start, end);
 
-        let mut grid = Grid::new(start, end, 1);
+        let mut min = Point3D::new(start.x.min(end.x), start.y.min(end.y), start.z.min(end.z));
+        let mut max = Point3D::new(start.x.max(end.x), start.y.max(end.y), start.z.max(end.z));
+
+        min.x -= padding as i32;
+        min.y -= padding as i32;
+        min.z -= padding as i32;
+        max.x += padding as i32;
+        max.y += padding as i32;
+        max.z += padding as i32;
+
+        println!("Using grid from {:?} to {:?}", min, max);
+
+        let mut grid = Grid::new(min, max, 1);
         grid.set_cost(start, 1);
         for block in &self.blocks {
             if block.is_solid() {

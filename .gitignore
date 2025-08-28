@@ -6,3 +6,4 @@ config.toml
 data/*.json
 JSON.lua
 config.toml
+data/*.bin

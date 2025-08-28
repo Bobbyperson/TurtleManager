@@ -2,19 +2,22 @@
 mod pathfinder;
 mod state;
 mod turtle;
-use pathfinder::{Grid, Point3D, astar_find_path, path_to_moves};
+use pathfinder::Point3D;
 
-use crate::turtle::World;
+use crate::turtle::{Block, World};
 use serde::{Deserialize, Serialize};
 use state::AppState;
-use std::{path::Path, time::Duration};
+use std::time::Duration;
 
 use axum::{
     Json, Router,
+    extract::State,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
 };
+
+use crate::pathfinder::{Grid, path_to_moves};
 
 const SAVE_PATH: &str = "data/world.bin";
 const SAVE_EVERY: Duration = Duration::from_secs(120);
@@ -51,8 +54,14 @@ fn key_is_valid(key: &str) -> bool {
 #[tokio::main]
 async fn main() {
     let mut main_world = World::new();
-    main_world.load_world(SAVE_PATH);
+    let _ = main_world.load_world(SAVE_PATH);
     let app_state = AppState::new(main_world);
+
+    tokio::spawn(start_periodic_saves(
+        app_state.clone(),
+        SAVE_PATH.into(),
+        SAVE_EVERY,
+    ));
 
     tracing_subscriber::fmt::init();
     let config: Config = toml::from_str(
@@ -62,8 +71,8 @@ async fn main() {
     let app = Router::new()
         .route("/", get(root))
         .route("/request-path", post(path_request))
-        .route("/update-blocks", post(block_update))
-        .with_state(app_state);
+        .route("/update_block", post(block_update))
+        .with_state(app_state.clone());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_string() + &config.port)
         .await
@@ -76,12 +85,29 @@ async fn root() -> &'static str {
     "Turtle Manager v0.1.0"
 }
 
-async fn block_update(Json(payload): Json<BlockUpdate>) -> impl IntoResponse {
-    // TODO
-    StatusCode::OK
+async fn block_update(
+    State(st): State<AppState>,
+    Json(payload): Json<BlockUpdate>,
+) -> impl IntoResponse {
+    if !key_is_valid(&payload.secret_key) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(Message {
+                text: "Invalid secret key".to_string(),
+            }),
+        )
+            .into_response();
+    }
+    let mut world = st.world.write().await; // write lock for concurrent writers
+    world.set_block(Block::new(payload.position, payload.block_type));
+
+    StatusCode::OK.into_response()
 }
 
-async fn path_request(Json(payload): Json<PathRequest>) -> impl IntoResponse {
+async fn path_request(
+    State(app): State<AppState>,
+    Json(payload): Json<PathRequest>,
+) -> impl IntoResponse {
     if !key_is_valid(&payload.secret_key) {
         return (
             StatusCode::UNAUTHORIZED,
@@ -92,7 +118,62 @@ async fn path_request(Json(payload): Json<PathRequest>) -> impl IntoResponse {
             .into_response();
     }
 
-    StatusCode::OK.into_response()
+    // parameters you may want to expose later
+    let padding: u32 = 10;
+    let can_dig: bool = false;
+
+    let world = app.world.read().await;
+    let t0 = std::time::Instant::now();
+    match world.get_path(payload.start, payload.goal, padding, can_dig) {
+        Some(path) => {
+            // Build matching Grid for path_to_moves (same min/max + default cost 1)
+            let mut min = Point3D::new(
+                payload.start.x.min(payload.goal.x),
+                payload.start.y.min(payload.goal.y),
+                payload.start.z.min(payload.goal.z),
+            );
+            let mut max = Point3D::new(
+                payload.start.x.max(payload.goal.x),
+                payload.start.y.max(payload.goal.y),
+                payload.start.z.max(payload.goal.z),
+            );
+            min.x -= padding as i32;
+            min.y -= padding as i32;
+            min.z -= padding as i32;
+            max.x += padding as i32;
+            max.y += padding as i32;
+            max.z += padding as i32;
+            let grid = Grid::new(min, max, 1);
+
+            match path_to_moves(&grid, &path) {
+                Ok(moves) => {
+                    let mut instructions = Instructions::new();
+                    instructions.steps = moves;
+                    let dt = t0.elapsed();
+                    println!(
+                        "Handled request with {} moves in {:.3?}",
+                        instructions.steps.len(),
+                        dt
+                    );
+                    (StatusCode::OK, axum::Json(instructions)).into_response()
+                }
+                Err(e) => {
+                    let mut instructions = Instructions::new();
+                    instructions.steps.push(format!("Error: {}", e));
+                    let dt = t0.elapsed();
+                    println!("No path found (took {:.3?})", dt);
+                    (StatusCode::OK, axum::Json(instructions)).into_response()
+                }
+            }
+        }
+        None => {
+            let mut instructions = Instructions::new();
+            instructions.steps.push("Error: No path found".to_string());
+            let dt = t0.elapsed();
+            println!("No path found (took {:.3?})", dt);
+            (StatusCode::OK, axum::Json(instructions)).into_response()
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -109,6 +190,22 @@ struct PathRequest {
     secret_key: String,
     start: Point3D,
     goal: Point3D,
+}
+
+async fn save_once(app_state: &AppState, path: &str) {
+    // Snapshot JSON while holding a read lock, then write atomically.
+    let world = app_state.world.read().await;
+    world.save_world(path).unwrap();
+}
+
+async fn start_periodic_saves(app_state: AppState, path: String, every: Duration) {
+    let mut ticker = tokio::time::interval(every);
+    println!("Starting periodic saves every {:?} to {}", every, path);
+    loop {
+        ticker.tick().await;
+        save_once(&app_state, &path).await;
+        println!("Saved world to {}", path);
+    }
 }
 
 // fn main() {
