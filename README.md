@@ -8,4 +8,4 @@ If you choose to set this up on a multiplayer server, it is **ABSOLUTELY VITAL**
 You must download [JSON.lua](https://regex.info/blog/lua/json) to every turtle running this script.
 
 ### Notable Projects
-[blunty666/CC-Programs-and-APIs](https://github.com/blunty666/CC-Programs-and-APIs)
+[blunty666/CC-Pathfinding-and-Mapping](https://github.com/blunty666/CC-Pathfinding-and-Mapping)
