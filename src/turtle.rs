@@ -1,12 +1,14 @@
+use std::time::Instant;
 use std::{fs::File, io::BufReader};
 
 use crate::pathfinder::{Grid, Point3D, astar_find_path};
 use bincode::{Decode, Encode, config};
+use serde::Deserialize;
 
 use std::io::ErrorKind;
 use std::path::Path;
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, PartialEq, Debug, Deserialize)]
 pub struct Block {
     position: Point3D,
     block_type: String,
@@ -114,24 +116,28 @@ impl World {
     }
 }
 
-struct Turtle {
+pub struct Turtle {
     position: Point3D,
     id: u32,
     facing: u8, // 0: north, 1: south, 2: west, 3: east
     name: String,
+    status: String,
+    last_heartbeat: Instant,
 }
 impl Turtle {
-    pub fn new(position: Point3D, id: u32, facing: u8, name: String) -> Self {
+    pub fn new(position: Point3D, id: u32, facing: u8, name: String, status: String) -> Self {
         Turtle {
             position,
             id,
             facing,
             name,
+            status,
+            last_heartbeat: Instant::now(),
         }
     }
 }
 
-struct Turtles {
+pub struct Turtles {
     turtles: Vec<Turtle>,
 }
 impl Turtles {

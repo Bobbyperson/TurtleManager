@@ -13,19 +13,42 @@ Pos = {
 Rotation = 0 -- 0 = N, 1 = E, 2 = S, 3 = W
 
 function GetInstructions()
-    local request = http.get("https://turtle.awesome.tf/instructions", {["turtle_id"] = computer.getLabel()})
-    if request then
-        Instructions = JSON:decode(request.readAll())
-        request.close()
+        -- DetermineOrientation()
+    print("Current orientation: " .. Rotation)
+
+    local body = textutils.serializeJSON({
+        secret_key = "blah",
+        start = Pos,
+        goal = { x = 20, y = -60, z = -22 }
+    })
+
+    local response = http.post(
+        "http://localhost:3001/request-path",
+        body,
+        { ["Content-Type"] = "application/json" }
+    )
+
+    if response then
+        local resText = response.readAll()
+        response.close()
+        Instructions = textutils.unserializeJSON(resText)
+        RunInstructions()
     else
-        print("Failed to get instructions from server.")
-        return false
+        print("HTTP request failed")
     end
-    if Instructions == nil or #Instructions == 0 then
-        print("No instructions received.")
-        return false
-    end
-    return true
+    -- local request = http.get("http://localhost/instructions", {["turtle_id"] = computer.getLabel()})
+    -- if request then
+    --     Instructions = JSON:decode(request.readAll())
+    --     request.close()
+    -- else
+    --     print("Failed to get instructions from server.")
+    --     return false
+    -- end
+    -- if Instructions == nil or #Instructions == 0 then
+    --     print("No instructions received.")
+    --     return false
+    -- end
+    -- return true
 end
 
 function PostInventory()
@@ -53,7 +76,7 @@ function PostInventory()
         ["authorization"] = "iamarealturtleyesiam"
     }
 
-    local response = http.post("https://turtle.awesome.tf/inventory", payload, headers)
+    local response = http.post("http://localhost/inventory", payload, headers)
 
     if response then
         response.close()
@@ -79,44 +102,57 @@ function PostInfo(i)
     end
 
     -- Collect visible blocks
+    if Rotation == 0 then
+        posahead = { x = Pos["x"], y = Pos["y"], z = Pos["z"] - 1 }
+    elseif Rotation == 1 then
+        posahead = { x = Pos["x"] + 1, y = Pos["y"], z = Pos["z"] }
+    elseif Rotation == 2 then
+        posahead = { x = Pos["x"], y = Pos["y"], z = Pos["z"] + 1 }
+    elseif Rotation == 3 then
+        posahead = { x = Pos["x"] - 1, y = Pos["y"], z = Pos["z"] }
+    end
     local visible = {
-        { direction = "front", name = inspect(turtle.inspect)    },
-        { direction = "up",    name = inspect(turtle.inspectUp)  },
-        { direction = "down",  name = inspect(turtle.inspectDown)}
+        { position = posahead, block_type = inspect(turtle.inspect)    },
+        { position = { x = Pos["x"], y = Pos["y"] + 1, z = Pos["z"] }, block_type = inspect(turtle.inspectUp)  },
+        { position = { x = Pos["x"], y = Pos["y"] - 1, z = Pos["z"] }, block_type = inspect(turtle.inspectDown)}
     }
 
     -- Assemble everything the backend cares about
     local body = JSON:encode({
-        turtle_id = computer.getLabel(),
-        position  = Pos,               -- {x = …, y = …, z = …}
-        rotation  = Rotation,          -- 0 = N, 1 = E, 2 = S, 3 = W
-        fuel      = turtle.getFuelLevel(),
+        -- turtle_id = computer.getLabel(),
+        -- position  = Pos,               -- {x = …, y = …, z = …}
+        -- rotation  = Rotation,          -- 0 = N, 1 = E, 2 = S, 3 = W
+        -- fuel      = turtle.getFuelLevel(),
         blocks    = visible,
-        instruction_index = i or 0,
+        secret_key = "blah"
+        -- instruction_index = i or 0,
     })
 
     local headers = {
         ["Content-Type"] = "application/json",
-        ["turtle_id"]    = computer.getLabel()
+        -- ["turtle_id"]    = computer.getLabel()
     }
 
-    local res = http.post("https://turtle.awesome.tf/info", body, headers)
+    local response, err, resp = http.post("http://localhost:3001/update-block", body, headers)
 
-    if res then
-        res.close()
+    if response then
+        response.close()
         return true
     else
         print("Failed to post turtle info to server.")
+        print(err)
+        print(resp.getResponseCode())
+        print(resp.readAll())
         return false
     end
 end
 
 
 function RunInstructions()
-    for i, instruction in ipairs(Instructions) do
-        if instruction == "moveup" then
+    for i, instruction in ipairs(Instructions["steps"]) do
+        if instruction == "up" then
             MoveUp()
-        elseif instruction == "movedown" then
+        elseif instruction == "down" then
             MoveDown()
         elseif instruction == "north" then
             Face(0)
@@ -163,6 +199,7 @@ function RunInstructions()
             print("Unknown instruction: " .. instruction)
         end
         PostInfo(i) -- Post info after each instruction
+        print("pos: " .. Pos["x"] .. ", " .. Pos["y"] .. ", " .. Pos["z"])
     end
 end
 
@@ -184,20 +221,20 @@ function UpdatePos()
         Pos["x"] = x
         Pos["y"] = y
         Pos["z"] = z
-        return
-    else
-        local response = http.get("https://turtle.awesome.tf/gps", {["turtle_id"] = computer.getLabel()})
-        if response then
-            local data = JSON:decode(response.readAll())
-            if data and data.success then
-                Pos["x"] = data.position.x
-                Pos["y"] = data.position.y
-                Pos["z"] = data.position.z
-            end
-        else
-            -- TODO: maybe complain to master server that I am lost
-            -- might not need to because if the backup GPS fails, the server will know
-        end
+        print("Updated position: " .. Pos["x"] .. ", " .. Pos["y"] .. ", " .. Pos["z"])
+    -- else
+    --     local response = http.get("http://localhost/gps", {["turtle_id"] = computer.getLabel()})
+    --     if response then
+    --         local data = JSON:decode(response.readAll())
+    --         if data and data.success then
+    --             Pos["x"] = data.position.x
+    --             Pos["y"] = data.position.y
+    --             Pos["z"] = data.position.z
+    --         end
+    --     else
+    --         -- TODO: maybe complain to master server that I am lost
+    --         -- might not need to because if the backup GPS fails, the server will know
+    --     end
     end
 end
 
@@ -215,6 +252,7 @@ function DetermineOrientation()
             Rotation = 0 -- North (towards negative Z)
         end
         turtle.back() -- Move back to original position
+        UpdatePos()
     else
         -- If we can't move forward, we can't determine orientation
         print("Hey idiot! Either my front is blocked or I have no fuel!")
@@ -338,11 +376,34 @@ function Turn(num) -- turns bot either left (-1) or right (+1) depending on inpu
 end
 
 local function main()
-    Refuel()
+    -- Refuel()
     UpdatePos()
     DetermineOrientation()
-    print("Current orientation: " .. Rotation)
+    GetInstructions()
+    -- print("Current orientation: " .. Rotation)
+
+    -- local body = textutils.serializeJSON({
+    --     secret_key = "blah",
+    --     start = Pos,
+    --     goal = { x = 5, y = -60, z = -15 }
+    -- })
+
+    -- local response = http.post(
+    --     "http://localhost:3001/request-path",
+    --     body,
+    --     { ["Content-Type"] = "application/json" }
+    -- )
+
+    -- if response then
+    --     local resText = response.readAll()
+    --     response.close()
+    --     Instructions = textutils.unserializeJSON(resText)
+    --     RunInstructions()
+    -- else
+    --     print("HTTP request failed")
+    -- end
 end
+
 
 local function passwordListener()
     while true do
@@ -366,7 +427,7 @@ local function passwordListener()
 end
 
 -- production mode
-parallel.waitForAny(main, passwordListener)
+-- parallel.waitForAny(main, passwordListener)
 
 -- testing mode
--- main()
+main()

@@ -1,10 +1,11 @@
 #![allow(dead_code)]
+mod job;
 mod pathfinder;
 mod state;
 mod turtle;
 use pathfinder::Point3D;
 
-use crate::turtle::{Block, World};
+use crate::turtle::{Block, Turtles, World};
 use serde::{Deserialize, Serialize};
 use state::AppState;
 use std::time::Duration;
@@ -55,7 +56,8 @@ fn key_is_valid(key: &str) -> bool {
 async fn main() {
     let mut main_world = World::new();
     let _ = main_world.load_world(SAVE_PATH);
-    let app_state = AppState::new(main_world);
+    let turtles = Turtles::new();
+    let app_state = AppState::new(main_world, turtles);
 
     tokio::spawn(start_periodic_saves(
         app_state.clone(),
@@ -71,7 +73,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(root))
         .route("/request-path", post(path_request))
-        .route("/update_block", post(block_update))
+        .route("/update-block", post(block_update))
         .with_state(app_state.clone());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_string() + &config.port)
@@ -99,7 +101,9 @@ async fn block_update(
             .into_response();
     }
     let mut world = st.world.write().await; // write lock for concurrent writers
-    world.set_block(Block::new(payload.position, payload.block_type));
+    for block in payload.blocks {
+        world.set_block(block);
+    }
 
     StatusCode::OK.into_response()
 }
@@ -117,8 +121,11 @@ async fn path_request(
         )
             .into_response();
     }
+    if payload.start == payload.goal {
+        let instructions = Instructions::new();
+        return (StatusCode::OK, axum::Json(instructions)).into_response();
+    }
 
-    // parameters you may want to expose later
     let padding: u32 = 10;
     let can_dig: bool = false;
 
@@ -179,8 +186,8 @@ async fn path_request(
 #[derive(Deserialize)]
 struct BlockUpdate {
     secret_key: String,
-    block_type: String,
-    position: Point3D,
+    // block_type: String,
+    blocks: Vec<Block>,
 }
 
 // most likely temporary for now for testing, maybe keep if manually
@@ -207,89 +214,3 @@ async fn start_periodic_saves(app_state: AppState, path: String, every: Duration
         println!("Saved world to {}", path);
     }
 }
-
-// fn main() {
-//     // Define bounds (inclusive). This is a 201 × 201 × 201 grid.
-//     let min = Point3D::new(-100, -100, -100);
-//     let max = Point3D::new(100, 100, 100);
-
-//     // Build grid with default movement cost = 1.
-//     let mut grid = Grid::new(min, max, 1);
-
-//     // Block a small 3×3×3 cube at the center to mimic "impassable" (cost = 0).
-//     // for x in -1..=1 {
-//     //     for y in -1..=1 {
-//     //         for z in -1..=1 {
-//     //             grid.set_cost(Point3D::new(x, y, z), 0);
-//     //         }
-//     //     }
-//     // }
-
-//     // // Example of weighted region: a "slow" plane at z = 10 with cost 3.
-//     // for x in -50..=50 {
-//     //     for y in -50..=50 {
-//     //         grid.set_cost(Point3D::new(x, y, 10), 3);
-//     //     }
-//     // }
-
-//     for x in -100..=100 {
-//         for y in -100..=100 {
-//             for z in -100..=100 {
-//                 grid.set_cost(Point3D::new(x, y, z), rng().random_range(1..=10)); // Random costs between 1 and 10
-//             }
-//         }
-//     }
-
-//     // for x in -100..=100 {
-//     //     for y in -100..=100 {
-//     //         for z in -100..=100 {
-//     //             // Randomly block some points with cost 0
-//     //             if rng().random_bool(0.5) { // 20% chance to block
-//     //                 grid.set_cost(Point3D::new(x, y, z), 0);
-//     //             }
-//     //         }
-//     //     }
-//     // }
-
-//     let start = Point3D::new(-99, -99, -99);
-//     let goal = Point3D::new(99, 99, 99);
-
-//     let t0 = std::time::Instant::now();
-//     match astar_find_path(&grid, start, goal) {
-//         Some(path) => {
-//             let dt = t0.elapsed();
-//             println!("Found path with {} steps in {:.3?}", path.len(), dt);
-
-//             // Convert to moves
-//             match path_to_moves(&grid, &path) {
-//                 Ok(moves) => {
-//                     println!("Moves count: {}", moves.len());
-//                     let preview = moves.len().min(20);
-//                     if preview > 0 {
-//                         println!("First {} moves:", preview);
-//                         for m in &moves[..preview] {
-//                             println!("{}", m);
-//                         }
-//                     }
-//                     if moves.len() > preview {
-//                         println!("... ({} more moves) ...", moves.len() - preview);
-//                     }
-//                     let mut instructions = Instructions::new();
-//                     instructions.steps = moves;
-//                     let json = serde_json::to_string_pretty(&instructions)
-//                         .expect("Failed to serialize instructions to JSON");
-//                     let mut file = File::create("data/out.json").expect("Failed to create output file");
-//                     file.write_all(json.as_bytes())
-//                         .expect("Failed to write to output file");
-//                 }
-//                 Err(e) => {
-//                     eprintln!("Path contained an invalid step: {}", e);
-//                 }
-//             }
-//         }
-//         None => {
-//             let dt = t0.elapsed();
-//             println!("No path found (took {:.3?})", dt);
-//         }
-//     }
-// }
