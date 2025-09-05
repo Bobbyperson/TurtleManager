@@ -3,8 +3,10 @@ mod job;
 mod pathfinder;
 mod state;
 mod turtle;
+use axum::http::HeaderMap;
 use pathfinder::Point3D;
 
+use crate::job::{Job, Jobs};
 use crate::turtle::{Block, Turtles, World};
 use serde::{Deserialize, Serialize};
 use state::AppState;
@@ -57,7 +59,8 @@ async fn main() {
     let mut main_world = World::new();
     let _ = main_world.load_world(SAVE_PATH);
     let turtles = Turtles::new();
-    let app_state = AppState::new(main_world, turtles);
+    let jobs = Jobs::new();
+    let app_state = AppState::new(main_world, turtles, jobs);
 
     tokio::spawn(start_periodic_saves(
         app_state.clone(),
@@ -74,6 +77,7 @@ async fn main() {
         .route("/", get(root))
         .route("/request-path", post(path_request))
         .route("/update-block", post(block_update))
+        .route("/get-instructions", get(get_instructions))
         .with_state(app_state.clone());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_string() + &config.port)
@@ -85,6 +89,14 @@ async fn main() {
 // basic handler that responds with a static string
 async fn root() -> &'static str {
     "Turtle Manager v0.1.0"
+}
+
+async fn get_instructions(State(app): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
+    let instructions = Instructions::new();
+    let world = app.world.read().await;
+    let jobs = app.jobs.read().await;
+    // Could add some status info here later
+    (StatusCode::OK, axum::Json(instructions)).into_response()
 }
 
 async fn block_update(
@@ -126,52 +138,22 @@ async fn path_request(
         return (StatusCode::OK, axum::Json(instructions)).into_response();
     }
 
-    let padding: u32 = 10;
-    let can_dig: bool = false;
+    let padding: u32 = 2;
+    let can_dig: bool = true;
 
     let world = app.world.read().await;
     let t0 = std::time::Instant::now();
     match world.get_path(payload.start, payload.goal, padding, can_dig) {
         Some(path) => {
-            // Build matching Grid for path_to_moves (same min/max + default cost 1)
-            let mut min = Point3D::new(
-                payload.start.x.min(payload.goal.x),
-                payload.start.y.min(payload.goal.y),
-                payload.start.z.min(payload.goal.z),
+            let mut instructions = Instructions::new();
+            instructions.steps = path;
+            let dt = t0.elapsed();
+            println!(
+                "Handled request with {} moves in {:.3?}",
+                instructions.steps.len(),
+                dt
             );
-            let mut max = Point3D::new(
-                payload.start.x.max(payload.goal.x),
-                payload.start.y.max(payload.goal.y),
-                payload.start.z.max(payload.goal.z),
-            );
-            min.x -= padding as i32;
-            min.y -= padding as i32;
-            min.z -= padding as i32;
-            max.x += padding as i32;
-            max.y += padding as i32;
-            max.z += padding as i32;
-            let grid = Grid::new(min, max, 1);
-
-            match path_to_moves(&grid, &path) {
-                Ok(moves) => {
-                    let mut instructions = Instructions::new();
-                    instructions.steps = moves;
-                    let dt = t0.elapsed();
-                    println!(
-                        "Handled request with {} moves in {:.3?}",
-                        instructions.steps.len(),
-                        dt
-                    );
-                    (StatusCode::OK, axum::Json(instructions)).into_response()
-                }
-                Err(e) => {
-                    let mut instructions = Instructions::new();
-                    instructions.steps.push(format!("Error: {}", e));
-                    let dt = t0.elapsed();
-                    println!("No path found (took {:.3?})", dt);
-                    (StatusCode::OK, axum::Json(instructions)).into_response()
-                }
-            }
+            (StatusCode::OK, axum::Json(instructions)).into_response()
         }
         None => {
             let mut instructions = Instructions::new();

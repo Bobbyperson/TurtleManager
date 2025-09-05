@@ -1,10 +1,15 @@
 use crate::pathfinder::Point3D;
 
-struct Jobs {
+pub struct Jobs {
     jobs: Vec<Job>,
 }
+impl Jobs {
+    pub fn new() -> Self {
+        Jobs { jobs: Vec::new() }
+    }
+}
 
-struct Job {
+pub struct Job {
     job_type: String,
     status: String,
     progress: f32,

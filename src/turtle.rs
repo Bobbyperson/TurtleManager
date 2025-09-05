@@ -1,7 +1,8 @@
+use core::str;
 use std::time::Instant;
 use std::{fs::File, io::BufReader};
 
-use crate::pathfinder::{Grid, Point3D, astar_find_path};
+use crate::pathfinder::{Grid, Point3D, astar_find_path, path_to_moves};
 use bincode::{Decode, Encode, config};
 use serde::Deserialize;
 
@@ -45,8 +46,17 @@ impl World {
     }
     pub fn set_block(&mut self, block: Block) {
         if let Some(existing) = self.get_block_mut(block.position) {
+            if block.block_type == "minecraft:air" {
+                // Remove block if setting to air
+                self.blocks.retain(|b| b.position != block.position);
+                return;
+            }
             *existing = block;
         } else {
+            if block.block_type == "minecraft:air" {
+                // Don't add air blocks
+                return;
+            }
             self.add_block(block);
         }
     }
@@ -56,7 +66,7 @@ impl World {
         mut end: Point3D,
         padding: u32,
         can_dig: bool,
-    ) -> Option<Vec<Point3D>> {
+    ) -> Option<Vec<String>> {
         if end.y < -60 {
             end.y = -60;
         } else if end.y > 318 {
@@ -87,7 +97,22 @@ impl World {
                 }
             }
         }
-        astar_find_path(&grid, start, end)
+        match astar_find_path(&grid, start, end) {
+            Some(path) => match path_to_moves(&grid, &path) {
+                Ok(moves) => {
+                    println!("Path found with {} moves", moves.len());
+                    Some(moves)
+                }
+                Err(e) => {
+                    println!("Error converting path to moves: {}", e);
+                    None
+                }
+            },
+            None => {
+                println!("No path found");
+                None
+            }
+        }
     }
     pub fn load_world<P: AsRef<Path>>(
         &mut self,
@@ -123,9 +148,17 @@ pub struct Turtle {
     name: String,
     status: String,
     last_heartbeat: Instant,
+    inventory: Vec<Item>,
 }
 impl Turtle {
-    pub fn new(position: Point3D, id: u32, facing: u8, name: String, status: String) -> Self {
+    pub fn new(
+        position: Point3D,
+        id: u32,
+        facing: u8,
+        name: String,
+        status: String,
+        inventory: Vec<Item>,
+    ) -> Self {
         Turtle {
             position,
             id,
@@ -133,6 +166,7 @@ impl Turtle {
             name,
             status,
             last_heartbeat: Instant::now(),
+            inventory,
         }
     }
 }
@@ -154,4 +188,9 @@ impl Turtles {
     pub fn get_turtle(&self, id: u32) -> Option<&Turtle> {
         self.turtles.iter().find(|t| t.id == id)
     }
+}
+
+pub struct Item {
+    name: String,
+    count: u32,
 }
