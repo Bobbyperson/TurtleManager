@@ -23,7 +23,7 @@ impl Block {
     }
 
     pub fn is_solid(&self) -> bool {
-        self.block_type != "minecraft:air"
+        self.block_type != "a" // air
     }
 }
 
@@ -44,19 +44,16 @@ impl World {
     pub fn get_block_mut(&mut self, position: Point3D) -> Option<&mut Block> {
         self.blocks.iter_mut().find(|b| b.position == position)
     }
-    pub fn set_block(&mut self, block: Block) {
+    pub fn set_block(&mut self, mut block: Block) {
+        // setting to "a" for the sake of saving storage
+        // i would just not store it, but it might be useful
+        // to know exactly what has been explored and what hasn't
+        if block.block_type == "minecraft:air" {
+            block.block_type = "a".to_string();
+        }
         if let Some(existing) = self.get_block_mut(block.position) {
-            if block.block_type == "minecraft:air" {
-                // Remove block if setting to air
-                self.blocks.retain(|b| b.position != block.position);
-                return;
-            }
             *existing = block;
         } else {
-            if block.block_type == "minecraft:air" {
-                // Don't add air blocks
-                return;
-            }
             self.add_block(block);
         }
     }
@@ -67,11 +64,8 @@ impl World {
         padding: u32,
         can_dig: bool,
     ) -> Option<Vec<String>> {
-        if end.y < -60 {
-            end.y = -60;
-        } else if end.y > 318 {
-            end.y = 318;
-        }
+        end.y = end.y.min(318);
+        end.y = end.y.max(-60);
         println!("Finding path from {:?} to {:?}", start, end);
 
         let mut min = Point3D::new(start.x.min(end.x), start.y.min(end.y), start.z.min(end.z));
@@ -88,8 +82,11 @@ impl World {
 
         let mut grid = Grid::new(min, max, 1);
         grid.set_cost(start, 1);
+        // this for loop may cause a performance issue with a lot of cached blocks
+        // and fixing it will require figuring out a method to only loop through
+        // blocks within the grid bounds
         for block in &self.blocks {
-            if block.is_solid() {
+            if block.is_solid() && grid.in_bounds(block.position) {
                 if can_dig && block.block_type != "minecraft:bedrock" {
                     grid.set_cost(block.position, 2);
                 } else {

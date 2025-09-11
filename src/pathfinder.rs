@@ -78,7 +78,7 @@ impl Grid {
     }
 
     #[inline]
-    fn in_bounds(&self, p: Point3D) -> bool {
+    pub fn in_bounds(&self, p: Point3D) -> bool {
         let nx = self.dims.0 as i32;
         let ny = self.dims.1 as i32;
         let nz = self.dims.2 as i32;

@@ -19,7 +19,7 @@ function GetInstructions()
     local body = textutils.serializeJSON({
         secret_key = "blah",
         start = Pos,
-        goal = { x = 20, y = -60, z = -22 }
+        goal = { x = 12, y = -60, z = 20 }
     })
 
     local response = http.post(
@@ -120,17 +120,17 @@ function PostInfo(i)
     -- Assemble everything the backend cares about
     local body = JSON:encode({
         -- turtle_id = computer.getLabel(),
-        -- position  = Pos,               -- {x = …, y = …, z = …}
-        -- rotation  = Rotation,          -- 0 = N, 1 = E, 2 = S, 3 = W
-        -- fuel      = turtle.getFuelLevel(),
+        position  = Pos,               -- {x = …, y = …, z = …}
+        rotation  = Rotation,          -- 0 = N, 1 = E, 2 = S, 3 = W
+        fuel      = turtle.getFuelLevel(),
         blocks    = visible,
-        secret_key = "blah"
         -- instruction_index = i or 0,
     })
 
     local headers = {
         ["Content-Type"] = "application/json",
-        -- ["turtle_id"]    = computer.getLabel()
+        ["turtle_id"]    = computer.getLabel()
+        ["authorization"] = "blah"
     }
 
     local response, err, resp = http.post("http://localhost:3001/update-block", body, headers)
@@ -150,6 +150,7 @@ end
 
 function RunInstructions()
     for i, instruction in ipairs(Instructions["steps"]) do
+        print("Executing instruction " .. i .. ": " .. instruction)
         if instruction == "up" then
             MoveUp()
         elseif instruction == "down" then
@@ -287,6 +288,7 @@ function Refuel()
         end
         if not fueled then
             print("Hey idiot! I need more fuel!")
+            return false
         end
     end
     return true

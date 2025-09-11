@@ -20,8 +20,6 @@ use axum::{
     routing::{get, post},
 };
 
-use crate::pathfinder::{Grid, path_to_moves};
-
 const SAVE_PATH: &str = "data/world.bin";
 const SAVE_EVERY: Duration = Duration::from_secs(120);
 
@@ -91,19 +89,62 @@ async fn root() -> &'static str {
     "Turtle Manager v0.1.0"
 }
 
-async fn get_instructions(State(app): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
+// main endpoint that is gonna get spammed
+async fn get_instructions(State(st): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
     let instructions = Instructions::new();
-    let world = app.world.read().await;
-    let jobs = app.jobs.read().await;
-    // Could add some status info here later
+    let world = st.world.read().await;
+    let jobs = st.jobs.read().await;
+    let mut turtles = st.turtles.write().await;
+    let auth = headers.get("Authorization").unwrap().to_str().unwrap();
+    if !key_is_valid(auth) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(Message {
+                text: "Invalid secret key".to_string(),
+            }),
+        )
+            .into_response();
+    }
+    let turtle_id: u32 = match headers
+        .get("turtle-id")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.parse().ok())
+    {
+        Some(id) => id,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(Message {
+                    text: "Invalid turtle-id header".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+    let turtle = match turtles.get_turtle(turtle_id) {
+        Some(t) => Some(t),
+        // Turtles will be registered in the post info handler
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(Message {
+                    text: "Turtle not found".to_string(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
     (StatusCode::OK, axum::Json(instructions)).into_response()
 }
 
 async fn block_update(
     State(st): State<AppState>,
-    Json(payload): Json<BlockUpdate>,
+    headers: HeaderMap,
+    Json(payload): Json<StatusUpdate>,
 ) -> impl IntoResponse {
-    if !key_is_valid(&payload.secret_key) {
+    let auth = headers.get("Authorization").unwrap().to_str().unwrap();
+    if !key_is_valid(auth) {
         return (
             StatusCode::UNAUTHORIZED,
             Json(Message {
@@ -122,9 +163,11 @@ async fn block_update(
 
 async fn path_request(
     State(app): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<PathRequest>,
 ) -> impl IntoResponse {
-    if !key_is_valid(&payload.secret_key) {
+    let auth = headers.get("Authorization").unwrap().to_str().unwrap();
+    if !key_is_valid(auth) {
         return (
             StatusCode::UNAUTHORIZED,
             Json(Message {
@@ -166,17 +209,16 @@ async fn path_request(
 }
 
 #[derive(Deserialize)]
-struct BlockUpdate {
-    secret_key: String,
-    // block_type: String,
+struct StatusUpdate {
     blocks: Vec<Block>,
+    position: Point3D,
+    rotation: u8,
 }
 
 // most likely temporary for now for testing, maybe keep if manually
 // repositioning turtles is desirable
 #[derive(Deserialize)]
 struct PathRequest {
-    secret_key: String,
     start: Point3D,
     goal: Point3D,
 }
