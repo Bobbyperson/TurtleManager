@@ -9,5 +9,6 @@ This is still in heavy development, and proper functionality is not guaranteed u
 ### Requirements
 You must download [JSON.lua](https://regex.info/blog/lua/json) to every turtle running this script.
 
-### Notable Projects
+### Inspiration/Notable Projects
 [blunty666/CC-Pathfinding-and-Mapping](https://github.com/blunty666/CC-Pathfinding-and-Mapping)
+[ottomated/turtle-gambit](https://github.com/ottomated/turtle-gambit)
