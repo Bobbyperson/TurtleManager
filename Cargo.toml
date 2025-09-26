@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 axum = "0.8.4"
 bincode = "2.0.1"
-serde = { version = "1.0.225", features = ["derive"] }
+serde = { version = "1.0.227", features = ["derive"] }
 tokio = { version = "1.47.1", features = ["full"] }
 toml = "0.9.6"
 tracing-subscriber = "0.3.20"
